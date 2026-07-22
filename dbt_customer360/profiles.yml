@@ -1,0 +1,24 @@
+customer360:
+  target: dev
+
+  outputs:
+    dev:
+      type: duckdb
+      path: customer360.duckdb
+      schema: analytics
+      threads: 4
+
+      extensions:
+        - httpfs
+        - parquet
+        - delta
+
+      secrets:
+        - type: s3
+          provider: config
+          key_id: "{{ env_var('MINIO_ACCESS_KEY') }}"
+          secret: "{{ env_var('MINIO_SECRET_KEY') }}"
+          region: us-east-1
+          endpoint: minio:9000
+          url_style: path
+          use_ssl: false

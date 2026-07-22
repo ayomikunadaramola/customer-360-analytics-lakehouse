@@ -1,0 +1,15 @@
+pyspark==3.5.5
+delta-spark==3.3.2
+faker
+pandas
+pyarrow
+boto3
+s3fs
+duckdb
+dbt-duckdb
+streamlit
+plotly
+great-expectations
+pytest
+python-dotenv
+pyyaml

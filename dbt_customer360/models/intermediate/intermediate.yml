@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: int_customer_value_segments
+    description: >
+      Customer-level revenue and purchasing-frequency segmentation.
+    columns:
+      - name: customer_id
+        data_tests:
+          - not_null
+          - unique
+
+      - name: customer_value_segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - High Value
+                  - Medium Value
+                  - Low Value
+                  - No Revenue
+
+      - name: purchase_frequency_segment
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - Frequent
+                  - Regular
+                  - Occasional
+                  - Inactive
+
+  - name: int_sales_performance
+    description: >
+      Daily sales data enriched with unpaid order value and payment
+      realisation rate.
+    columns:
+      - name: sales_date
+        data_tests:
+          - not_null
+          - unique
+
+      - name: payment_realisation_rate
+        data_tests:
+          - not_null
+
+  - name: int_product_rankings
+    description: >
+      Product performance enriched with unit rankings and revenue segments.
+    columns:
+      - name: product_id
+        data_tests:
+          - not_null
+          - unique
+
+      - name: revenue_segment
+        data_tests:
+          - not_null

@@ -1,0 +1,185 @@
+services:
+  dbt:
+    build:
+      context: ./dbt_customer360
+      dockerfile: Dockerfile
+    container_name: customer360_dbt
+    depends_on:
+      - minio
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+    volumes:
+      - ./dbt_customer360:/usr/app/dbt
+    working_dir: /usr/app/dbt
+    ports:
+      - "8085:8085"
+    networks:
+      - customer360_network
+  minio:
+    image: minio/minio:latest
+    container_name: customer360_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - customer360_network
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: customer360_minio_init
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+    volumes:
+      - ./lakehouse/landing:/source/landing:ro
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000
+      $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}; do
+        echo 'Waiting for MinIO...';
+        sleep 3;
+      done;
+      mc mb --ignore-existing local/$${MINIO_BUCKET};
+      mc anonymous set none local/$${MINIO_BUCKET};
+      echo 'MinIO bucket created successfully';
+      "
+    networks:
+      - customer360_network
+
+  spark-master:
+    image: apache/spark:3.5.5
+    container_name: customer360_spark_master
+    hostname: spark-master
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.master.Master
+      - --host
+      - spark-master
+      - --port
+      - "7077"
+      - --webui-port
+      - "8080"
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+    volumes:
+      - ./:/opt/customer360
+      - spark_ivy_cache:/home/spark/.ivy2
+    working_dir: /opt/customer360
+    ports:
+      - "7077:7077"
+      - "8081:8080"
+    networks:
+      - customer360_network
+    restart: unless-stopped
+
+  spark-worker:
+    image: apache/spark:3.5.5
+    container_name: customer360_spark_worker
+    hostname: spark-worker
+    depends_on:
+      - spark-master
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.worker.Worker
+      - spark://spark-master:7077
+      - --cores
+      - "2"
+      - --memory
+      - "2G"
+      - --webui-port
+      - "8081"
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+    volumes:
+      - ./:/opt/customer360
+      - spark_ivy_cache:/home/spark/.ivy2
+    working_dir: /opt/customer360
+    ports:
+      - "8082:8081"
+    networks:
+      - customer360_network
+    restart: unless-stopped
+
+  spark-thrift:
+    image: apache/spark:3.5.5
+    container_name: customer360_spark_thrift
+    hostname: spark-thrift
+
+    depends_on:
+      - spark-master
+      - spark-worker
+      - minio
+
+    entrypoint:
+      - /bin/sh
+      - -c
+
+    command: >
+      exec /opt/spark/sbin/start-thriftserver.sh
+      --master spark://spark-master:7077
+      --jars
+      /home/spark/.ivy2/jars/io.delta_delta-spark_2.12-3.3.2.jar,/home/spark/.ivy2/jars/io.delta_delta-storage-3.3.2.jar,/home/spark/.ivy2/jars/org.apache.hadoop_hadoop-aws-3.3.4.jar,/home/spark/.ivy2/jars/com.amazonaws_aws-java-sdk-bundle-1.12.262.jar,/home/spark/.ivy2/jars/org.antlr_antlr4-runtime-4.9.3.jar,/home/spark/.ivy2/jars/org.wildfly.openssl_wildfly-openssl-1.0.7.Final.jar
+      --conf spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
+      --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
+      --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000
+      --conf spark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY}
+      --conf spark.hadoop.fs.s3a.secret.key=${MINIO_SECRET_KEY}
+      --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+      --conf spark.hadoop.fs.s3a.path.style.access=true
+      --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false
+      --conf spark.sql.warehouse.dir=/tmp/customer360-warehouse
+      --conf spark.local.dir=/tmp/customer360-thrift
+      --conf spark.executor.instances=1
+      --conf spark.executor.cores=1
+      --conf spark.executor.memory=1g
+      --hiveconf hive.server2.thrift.port=10000
+      --hiveconf hive.server2.thrift.bind.host=0.0.0.0
+
+    environment:
+      SPARK_NO_DAEMONIZE: "1"
+      HOME: /tmp
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+
+    volumes:
+      - ./:/opt/customer360
+      - spark_ivy_cache:/home/spark/.ivy2
+
+    working_dir: /opt/customer360
+
+    ports:
+      - "10000:10000"
+      - "4040:4040"
+
+    networks:
+      - customer360_network
+
+    restart: unless-stopped
+
+networks:
+  customer360_network:
+    driver: bridge
+
+volumes:
+  minio_data:
+  spark_ivy_cache:

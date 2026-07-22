@@ -1,0 +1,38 @@
+version: 2
+
+sources:
+  - name: customer360_gold
+    description: >
+      Customer 360 Gold-layer Delta tables stored in MinIO
+      and queried through DuckDB.
+
+    tables:
+      - name: customer_360
+        description: Consolidated customer-level profile and business metrics.
+        meta:
+          external_location: "delta_scan('s3://customer360/gold/customer_360')"
+
+      - name: sales_summary
+        description: Daily sales and payment performance metrics.
+        meta:
+          external_location: "delta_scan('s3://customer360/gold/sales_summary')"
+
+      - name: product_performance
+        description: Product-level sales, quantity and revenue metrics.
+        meta:
+          external_location: "delta_scan('s3://customer360/gold/product_performance')"
+
+      - name: marketing_summary
+        description: Campaign and marketing-channel performance metrics.
+        meta:
+          external_location: "delta_scan('s3://customer360/gold/marketing_summary')"
+
+      - name: support_summary
+        description: Support-ticket service and resolution metrics.
+        meta:
+          external_location: "delta_scan('s3://customer360/gold/support_summary')"
+
+      - name: web_engagement_summary
+        description: Website traffic and customer-engagement metrics.
+        meta:
+          external_location: "delta_scan('s3://customer360/gold/web_engagement_summary')"

@@ -1,0 +1,81 @@
+version: 2
+
+models:
+  - name: dim_customer_segments
+    description: >
+      Customer-level analytical mart containing value and purchasing
+      frequency segments.
+    columns:
+      - name: customer_id
+        description: Unique customer identifier.
+        data_tests:
+          - not_null
+          - unique
+
+      - name: customer_value_segment
+        description: Revenue-based customer segment.
+        data_tests:
+          - not_null
+
+      - name: purchase_frequency_segment
+        description: Order-frequency customer segment.
+        data_tests:
+          - not_null
+
+  - name: fct_daily_sales
+    description: >
+      Daily sales and payment-realisation metrics.
+    columns:
+      - name: sales_date
+        description: Date represented by the sales row.
+        data_tests:
+          - not_null
+          - unique
+
+      - name: gross_order_value
+        data_tests:
+          - not_null
+
+      - name: payment_realisation_rate
+        data_tests:
+          - not_null
+
+  - name: fct_product_performance
+    description: >
+      Product-level revenue, sales volume, and ranking metrics.
+    columns:
+      - name: product_id
+        data_tests:
+          - not_null
+          - unique
+
+      - name: product_revenue
+        data_tests:
+          - not_null
+
+      - name: units_sold_rank
+        data_tests:
+          - not_null
+
+  - name: fct_marketing_performance
+    description: Marketing campaign and channel performance mart.
+    columns:
+      - name: campaign_id
+        data_tests:
+          - not_null
+
+  - name: fct_support_performance
+    description: Support resolution and satisfaction performance mart.
+    columns:
+      - name: support_group
+        data_tests:
+          - not_null
+          - unique
+
+  - name: fct_web_engagement
+    description: Website traffic, sessions, visitors, and conversion metrics.
+    columns:
+      - name: engagement_date
+        data_tests:
+          - not_null
+          - unique
